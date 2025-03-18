@@ -13,3 +13,5 @@ pretrained_models/
 *.npy
 *.npz
 *.txt
+
+predictions_*
