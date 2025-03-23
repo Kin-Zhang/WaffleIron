@@ -16,6 +16,7 @@
 from .pc_dataset import Collate
 from .nuscenes import NuScenesSemSeg
 from .semantic_kitti import SemanticKITTI
+from .h5sf import H5Dataset
 
-__all__ = [SemanticKITTI, NuScenesSemSeg, Collate]
+__all__ = [SemanticKITTI, NuScenesSemSeg, Collate, H5Dataset]
 LIST_DATASETS = {"nuscenes": NuScenesSemSeg, "semantic_kitti": SemanticKITTI}

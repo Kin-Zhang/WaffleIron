@@ -21,7 +21,7 @@ import waffleiron
 import numpy as np
 from tqdm import tqdm
 from waffleiron import Segmenter
-from datasets import SemanticKITTI, Collate
+from datasets import H5Dataset, Collate
 
 
 if __name__ == "__main__":
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", type=str, help="Path to config file")
     parser.add_argument("--ckpt", type=str, help="Path to checkpoint")
     parser.add_argument(
-        "--path_dataset", type=str, help="Path to SemanticKITTI dataset"
+        "--path_dataset", type=str, help="Path to H5Dataset dataset"
     )
     parser.add_argument("--result_folder", type=str, help="Path to where result folder")
     parser.add_argument(
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     # --- Dataloader
     tta = args.num_votes > 1
     print("Path: ", args.path_dataset)
-    dataset = SemanticKITTI(
+    dataset = H5Dataset(
         rootdir=args.path_dataset,
         input_feat=config["embedding"]["input_feat"],
         voxel_size=config["embedding"]["voxel_size"],
@@ -121,6 +121,8 @@ if __name__ == "__main__":
     for it, batch in enumerate(
         tqdm(loader, bar_format="{desc:<5.5}{percentage:3.0f}%|{bar:50}{r_bar}")
     ):
+        if it>10:
+            break
         # Reset vote
         if id_vote == 0:
             vote = None
@@ -159,14 +161,14 @@ if __name__ == "__main__":
             lower_half = remap_lut[lower_half]  # do the remapping of semantics
             label = (upper_half << 16) + lower_half  # reconstruct full label
             label = label.astype(np.uint32)
-            # Save result
+        #     # Save result
             assert batch["filename"][0] == batch["filename"][-1]
-            label_file = batch["filename"][0][
-                len(os.path.join(dataset.rootdir, "dataset/")):
-            ]
-            label_file = label_file.replace("velodyne", "predictions")[:-3] + "label"
-            label_file = os.path.join(args.result_folder, label_file)
-            os.makedirs(os.path.split(label_file)[0], exist_ok=True)
-            label.tofile(label_file)
-            # Reset count of votes
+        #     label_file = batch["filename"][0][
+        #         len(os.path.join(dataset.rootdir, "dataset/")):
+        #     ]
+        #     label_file = label_file.replace("velodyne", "predictions")[:-3] + "label"
+        #     label_file = os.path.join(args.result_folder, label_file)
+        #     os.makedirs(os.path.split(label_file)[0], exist_ok=True)
+        #     label.tofile(label_file)
+        #     # Reset count of votes
             id_vote = 0

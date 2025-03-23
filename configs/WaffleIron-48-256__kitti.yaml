@@ -42,7 +42,7 @@ augmentations:
   scale:
     - [4, 5, 6, 7]
     - 0.1
-  instance_cutmix: True # Will apply Cutmix *and* Polarmix
+  instance_cutmix: False # Will apply Cutmix *and* Polarmix
 
 loss:
   lovasz: 1.0
