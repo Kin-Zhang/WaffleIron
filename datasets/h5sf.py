@@ -47,7 +47,8 @@ class H5Dataset(PCDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         assert self.phase in ['test', 'val'], "H5Dataset only supports validation phase now."
-        eval_index_file = os.path.join(self.rootdir, 'index_eval.pkl')
+        # eval_index_file = os.path.join(self.rootdir, 'index_eval.pkl')
+        eval_index_file = os.path.join(self.rootdir, 'index_total.pkl')
         if not os.path.exists(eval_index_file):
             raise Exception(f"No eval index file found! Please check {self.rootdir}")
         with open(eval_index_file, 'rb') as f:
@@ -63,6 +64,8 @@ class H5Dataset(PCDataset):
         with h5py.File(os.path.join(self.rootdir, f'{scene_id}.h5'), 'r') as f:
             key = str(timestamp)
             pc = f[key]['lidar'][:]
+        # set intensity to 0 as we don't know if the scale is the same.
+        pc[:, 3] = 0
         # print(pc.shape) # testing
         # Extract Label
         labels = np.zeros((pc.shape[0], 1), dtype=np.int32)

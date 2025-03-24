@@ -15,7 +15,7 @@
 
 import os
 import yaml
-import torch
+import torch, h5py
 import argparse
 import waffleiron
 import numpy as np
@@ -23,6 +23,61 @@ from tqdm import tqdm
 from waffleiron import Segmenter
 from datasets import H5Dataset, Collate
 
+from av2.datasets.sensor.constants import AnnotationCategories
+from typing import Final
+SCENE_FLOW_DYNAMIC_THRESHOLD: Final = 0.05
+SWEEP_PAIR_TIME_DELTA: Final = 0.1
+CLOSE_DISTANCE_THRESHOLD: Final = 35.0
+
+CATEGORY_TO_INDEX: Final = {
+    **{"NONE": 0},
+    **{k.value: i + 1 for i, k in enumerate(AnnotationCategories)},
+}
+INDEX_TO_CATEGORY: Final = {v: k for k, v in CATEGORY_TO_INDEX.items()}
+NAME_MAPPING_K2A = {
+    'outlier': 'NONE',
+    'unlabeled': 'NONE',
+    'car': 'REGULAR_VEHICLE',
+    'bicycle': 'BICYCLE',
+    'motorcycle': 'MOTORCYCLE',
+    'truck': 'TRUCK',
+    'other-vehicle': 'LARGE_VEHICLE',
+    'person': 'PEDESTRIAN',
+    'bicyclist': 'BICYCLIST',
+    'motorcyclist': 'MOTORCYCLIST',
+    'road': 'NONE',
+    'parking': 'NONE',
+    'sidewalk': 'NONE',
+    'other-ground': 'NONE',
+    'building': 'NONE',
+    'fence': 'NONE',
+    'vegetation': 'NONE',
+    'trunk': 'NONE',
+    'terrain': 'NONE',
+    'pole': 'NONE',
+    'traffic-sign': 'SIGN',
+}    
+PEDESTRIAN_CATEGORIES = ["PEDESTRIAN", "STROLLER", "WHEELCHAIR", "OFFICIAL_SIGNALER"]
+WHEELED_VRU = [
+    "BICYCLE",
+    "BICYCLIST",
+    "MOTORCYCLE",
+    "MOTORCYCLIST",
+    "WHEELED_DEVICE",
+    "WHEELED_RIDER",
+]
+CAR = ["REGULAR_VEHICLE"]
+OTHER_VEHICLES = [
+    "BOX_TRUCK",
+    "LARGE_VEHICLE",
+    "RAILED_VEHICLE",
+    "TRUCK",
+    "TRUCK_CAB",
+    "VEHICULAR_TRAILER",
+    "ARTICULATED_BUS",
+    "BUS",
+    "SCHOOL_BUS",
+]
 
 if __name__ == "__main__":
     # --- Arguments
@@ -51,6 +106,7 @@ if __name__ == "__main__":
     with open("./datasets/semantic-kitti.yaml") as stream:
         semkittiyaml = yaml.safe_load(stream)
     remapdict = semkittiyaml["learning_map_inv"]
+    kittidict = semkittiyaml["labels"]
     maxkey = max(remapdict.keys())
     remap_lut = np.zeros((maxkey + 100), dtype=np.int32)
     remap_lut[list(remapdict.keys())] = list(remapdict.values())
@@ -121,7 +177,7 @@ if __name__ == "__main__":
     for it, batch in enumerate(
         tqdm(loader, bar_format="{desc:<5.5}{percentage:3.0f}%|{bar:50}{r_bar}")
     ):
-        if it>10:
+        if it>20:
             break
         # Reset vote
         if id_vote == 0:
@@ -151,6 +207,7 @@ if __name__ == "__main__":
 
         # Save prediction
         if id_vote == args.num_votes:
+            id_vote = 0
             # Convert label
             pred_label = (
                 vote.max(1)[1] + 1
@@ -158,17 +215,25 @@ if __name__ == "__main__":
             label = pred_label.cpu().numpy().reshape(-1).astype(np.uint32)
             upper_half = label >> 16  # get upper half for instances
             lower_half = label & 0xFFFF  # get lower half for semantics
+            lower_half
             lower_half = remap_lut[lower_half]  # do the remapping of semantics
-            label = (upper_half << 16) + lower_half  # reconstruct full label
-            label = label.astype(np.uint32)
-        #     # Save result
+
+            # NAME_MAPPING_KITTI2AV
+            selected_list = []
+            for l in lower_half:
+                av2_label = NAME_MAPPING_K2A[kittidict[l]]
+                if av2_label in CAR+OTHER_VEHICLES: # only need CAR and OTHER_VEHICLES
+                    selected_list.append(CATEGORY_TO_INDEX[av2_label])
+                else:
+                    selected_list.append(0)
+            # Save result
             assert batch["filename"][0] == batch["filename"][-1]
-        #     label_file = batch["filename"][0][
-        #         len(os.path.join(dataset.rootdir, "dataset/")):
-        #     ]
-        #     label_file = label_file.replace("velodyne", "predictions")[:-3] + "label"
-        #     label_file = os.path.join(args.result_folder, label_file)
-        #     os.makedirs(os.path.split(label_file)[0], exist_ok=True)
-        #     label.tofile(label_file)
-        #     # Reset count of votes
-            id_vote = 0
+            scene_id, timestamp = batch["filename"][0].split(":")
+            with h5py.File(os.path.join(args.path_dataset, f'{scene_id}.h5'), 'r+') as f:
+                key = str(timestamp)
+                if 'wf_semantic' in f[key]:
+                    del f[key]['wf_semantic']
+                    # continue
+                # else:
+                #     f[key].create_dataset('wf_semantic', data=selected_list)
+                f[key].create_dataset('wf_semantic', data=selected_list)
