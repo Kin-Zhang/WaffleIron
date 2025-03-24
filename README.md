@@ -1,3 +1,22 @@
+HiMo Downstream task
+---
+
+
+Running command:
+
+```bash
+python eval_h5.py \
+--path_dataset /home/kin/data/Scania/preprocess/val_v1 \
+--ckpt ./pretrained_models/WaffleIron-48-256__kitti/ckpt_last.pth \
+--config ./configs/WaffleIron-48-256__kitti.yaml \
+--phase val \
+```
+
+Some note:
+* I didn't check whether the intensity scale is same to kitti so I hardcode to set all intensity as 0 now.
+* I don't know why but looks like lots of background points assign to large vehicle? I filtered out using gt_class as we only evaluate on gt class valid points.
+* h5file looks like lock during this time. I don't know why. I will try to fix it later. (maybe because of previously opened process and unexpected close)
+
 # WaffleIron
 
 ![](./illustration.png)

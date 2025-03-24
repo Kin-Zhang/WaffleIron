@@ -31,7 +31,7 @@ embedding: # Architecture of the embedding layer, before WaffleIron
   voxel_size: 0.1   # Voxel size for downsampling point cloud in pre-processing
 
 dataloader:
-  batch_size: 4
+  batch_size: 1
   num_workers: 12
   max_points: 20000
 

@@ -13,71 +13,15 @@
 # limitations under the License.
 
 
-import os
-import yaml
-import torch, h5py
-import argparse
+import os, yaml, h5py, argparse
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+import torch
 import waffleiron
 import numpy as np
 from tqdm import tqdm
 from waffleiron import Segmenter
 from datasets import H5Dataset, Collate
-
-from av2.datasets.sensor.constants import AnnotationCategories
-from typing import Final
-SCENE_FLOW_DYNAMIC_THRESHOLD: Final = 0.05
-SWEEP_PAIR_TIME_DELTA: Final = 0.1
-CLOSE_DISTANCE_THRESHOLD: Final = 35.0
-
-CATEGORY_TO_INDEX: Final = {
-    **{"NONE": 0},
-    **{k.value: i + 1 for i, k in enumerate(AnnotationCategories)},
-}
-INDEX_TO_CATEGORY: Final = {v: k for k, v in CATEGORY_TO_INDEX.items()}
-NAME_MAPPING_K2A = {
-    'outlier': 'NONE',
-    'unlabeled': 'NONE',
-    'car': 'REGULAR_VEHICLE',
-    'bicycle': 'BICYCLE',
-    'motorcycle': 'MOTORCYCLE',
-    'truck': 'TRUCK',
-    'other-vehicle': 'LARGE_VEHICLE',
-    'person': 'PEDESTRIAN',
-    'bicyclist': 'BICYCLIST',
-    'motorcyclist': 'MOTORCYCLIST',
-    'road': 'NONE',
-    'parking': 'NONE',
-    'sidewalk': 'NONE',
-    'other-ground': 'NONE',
-    'building': 'NONE',
-    'fence': 'NONE',
-    'vegetation': 'NONE',
-    'trunk': 'NONE',
-    'terrain': 'NONE',
-    'pole': 'NONE',
-    'traffic-sign': 'SIGN',
-}    
-PEDESTRIAN_CATEGORIES = ["PEDESTRIAN", "STROLLER", "WHEELCHAIR", "OFFICIAL_SIGNALER"]
-WHEELED_VRU = [
-    "BICYCLE",
-    "BICYCLIST",
-    "MOTORCYCLE",
-    "MOTORCYCLIST",
-    "WHEELED_DEVICE",
-    "WHEELED_RIDER",
-]
-CAR = ["REGULAR_VEHICLE"]
-OTHER_VEHICLES = [
-    "BOX_TRUCK",
-    "LARGE_VEHICLE",
-    "RAILED_VEHICLE",
-    "TRUCK",
-    "TRUCK_CAB",
-    "VEHICULAR_TRAILER",
-    "ARTICULATED_BUS",
-    "BUS",
-    "SCHOOL_BUS",
-]
+from datasets.h5sf import CATEGORY_TO_INDEX, NAME_MAPPING_K2A, CAR, OTHER_VEHICLES
 
 if __name__ == "__main__":
     # --- Arguments
@@ -87,16 +31,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--path_dataset", type=str, help="Path to H5Dataset dataset"
     )
-    parser.add_argument("--result_folder", type=str, help="Path to where result folder")
     parser.add_argument(
         "--num_votes", type=int, default=1, help="Number of test time augmentations"
     )
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
-    parser.add_argument("--num_workers", type=int, default=6)
+    parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument("--phase", required=True, help="val or test")
     args = parser.parse_args()
     assert args.num_votes % args.batch_size == 0
-    os.makedirs(args.result_folder, exist_ok=True)
 
     # --- Load config file
     with open(args.config) as f:
@@ -177,7 +119,7 @@ if __name__ == "__main__":
     for it, batch in enumerate(
         tqdm(loader, bar_format="{desc:<5.5}{percentage:3.0f}%|{bar:50}{r_bar}")
     ):
-        if it>20:
+        if it>100:
             break
         # Reset vote
         if id_vote == 0:
@@ -215,25 +157,25 @@ if __name__ == "__main__":
             label = pred_label.cpu().numpy().reshape(-1).astype(np.uint32)
             upper_half = label >> 16  # get upper half for instances
             lower_half = label & 0xFFFF  # get lower half for semantics
-            lower_half
             lower_half = remap_lut[lower_half]  # do the remapping of semantics
 
-            # NAME_MAPPING_KITTI2AV
-            selected_list = []
-            for l in lower_half:
-                av2_label = NAME_MAPPING_K2A[kittidict[l]]
-                if av2_label in CAR+OTHER_VEHICLES: # only need CAR and OTHER_VEHICLES
-                    selected_list.append(CATEGORY_TO_INDEX[av2_label])
-                else:
-                    selected_list.append(0)
+            res_sem = [CATEGORY_TO_INDEX[NAME_MAPPING_K2A[kittidict[l]]] for l in lower_half]
+            # CAR+OTHER_VEHICLES extract their index in CATEGORY_TO_INDEX
+            valid_index_ = [CATEGORY_TO_INDEX[l] for l in CAR + OTHER_VEHICLES]
+
             # Save result
             assert batch["filename"][0] == batch["filename"][-1]
             scene_id, timestamp = batch["filename"][0].split(":")
-            with h5py.File(os.path.join(args.path_dataset, f'{scene_id}.h5'), 'r+') as f:
+            # print("Scene ID: ", scene_id, "Timestamp: ", timestamp)
+            with h5py.File(os.path.join(args.path_dataset, f'{scene_id}.h5'), 'r+') as f:    
                 key = str(timestamp)
+                valid_class = np.isin(f[key]['flow_category_indices'][:], valid_index_)
+                gm = f[key]['ground_mask'][:]
+                res_sem = np.array(res_sem)
+                res_sem[~valid_class | gm] = 0
                 if 'wf_semantic' in f[key]:
                     del f[key]['wf_semantic']
-                    # continue
+                #     continue
                 # else:
-                #     f[key].create_dataset('wf_semantic', data=selected_list)
-                f[key].create_dataset('wf_semantic', data=selected_list)
+                #     f[key].create_dataset('wf_semantic', data=res_sem)
+                f[key].create_dataset('wf_semantic', data=res_sem)

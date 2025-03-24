@@ -12,38 +12,66 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import yaml, pickle
-import torch
-import warnings, h5py, os, sys
+import pickle, h5py, os, sys
 import numpy as np
-from glob import glob
-from tqdm import tqdm
-import utils.transforms as tr
 from .pc_dataset import PCDataset
 
-class H5Dataset(PCDataset):
-    CLASS_NAME = [
-        "car",  # 0
-        "bicycle",  # 1
-        "motorcycle",  # 2
-        "truck",  # 3
-        "other-vehicle",  # 4
-        "person",  # 5
-        "bicyclist",  # 6
-        "motorcyclist",  # 7
-        "road",  # 8
-        "parking",  # 9
-        "sidewalk",  # 10
-        "other-ground",  # 11
-        "building",  # 12
-        "fence",  # 13
-        "vegetation",  # 14
-        "trunk",  # 15
-        "terrain",  # 16
-        "pole",  # 17
-        "traffic-sign",  # 18
-    ]
+from av2.datasets.sensor.constants import AnnotationCategories
+from typing import Final
+SCENE_FLOW_DYNAMIC_THRESHOLD: Final = 0.05
+SWEEP_PAIR_TIME_DELTA: Final = 0.1
+CLOSE_DISTANCE_THRESHOLD: Final = 35.0
 
+CATEGORY_TO_INDEX: Final = {
+    **{"NONE": 0},
+    **{k.value: i + 1 for i, k in enumerate(AnnotationCategories)},
+}
+INDEX_TO_CATEGORY: Final = {v: k for k, v in CATEGORY_TO_INDEX.items()}
+NAME_MAPPING_K2A = {
+    'outlier': 'NONE',
+    'unlabeled': 'NONE',
+    'car': 'REGULAR_VEHICLE',
+    'bicycle': 'BICYCLE',
+    'motorcycle': 'MOTORCYCLE',
+    'truck': 'TRUCK',
+    'other-vehicle': 'LARGE_VEHICLE',
+    'person': 'PEDESTRIAN',
+    'bicyclist': 'BICYCLIST',
+    'motorcyclist': 'MOTORCYCLIST',
+    'road': 'NONE',
+    'parking': 'NONE',
+    'sidewalk': 'NONE',
+    'other-ground': 'NONE',
+    'building': 'NONE',
+    'fence': 'NONE',
+    'vegetation': 'NONE',
+    'trunk': 'NONE',
+    'terrain': 'NONE',
+    'pole': 'NONE',
+    'traffic-sign': 'SIGN',
+}    
+PEDESTRIAN_CATEGORIES = ["PEDESTRIAN", "STROLLER", "WHEELCHAIR", "OFFICIAL_SIGNALER"]
+WHEELED_VRU = [
+    "BICYCLE",
+    "BICYCLIST",
+    "MOTORCYCLE",
+    "MOTORCYCLIST",
+    "WHEELED_DEVICE",
+    "WHEELED_RIDER",
+]
+CAR = ["REGULAR_VEHICLE"]
+OTHER_VEHICLES = [
+    "BOX_TRUCK",
+    "LARGE_VEHICLE",
+    "RAILED_VEHICLE",
+    "TRUCK",
+    "TRUCK_CAB",
+    "VEHICULAR_TRAILER",
+    "ARTICULATED_BUS",
+    "BUS",
+    "SCHOOL_BUS",
+]
+class H5Dataset(PCDataset):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         assert self.phase in ['test', 'val'], "H5Dataset only supports validation phase now."
