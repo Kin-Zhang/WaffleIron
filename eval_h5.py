@@ -21,7 +21,7 @@ import numpy as np
 from tqdm import tqdm
 from waffleiron import Segmenter
 from datasets import H5Dataset, Collate
-from datasets.h5sf import CATEGORY_TO_INDEX, NAME_MAPPING_K2A, CAR, OTHER_VEHICLES
+from datasets.h5sf import CATEGORY_TO_INDEX, NAME_MAPPING_K2A, CAR, OTHER_VEHICLES, NAME_MAPPING_N2A
 
 if __name__ == "__main__":
     # --- Arguments
@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
     parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument("--phase", required=True, help="val or test")
+    parser.add_argument("--flow_mode", type=str, default='himu_seflowpp')
     args = parser.parse_args()
     assert args.num_votes % args.batch_size == 0
 
@@ -48,7 +49,9 @@ if __name__ == "__main__":
     with open("./datasets/semantic-kitti.yaml") as stream:
         semkittiyaml = yaml.safe_load(stream)
     remapdict = semkittiyaml["learning_map_inv"]
-    kittidict = semkittiyaml["labels"]
+    labeldict = semkittiyaml["labels"]
+    # labeldict = semkittiyaml["nuslabels"]
+    
     maxkey = max(remapdict.keys())
     remap_lut = np.zeros((maxkey + 100), dtype=np.int32)
     remap_lut[list(remapdict.keys())] = list(remapdict.values())
@@ -66,6 +69,7 @@ if __name__ == "__main__":
         fov_xyz=config["waffleiron"]["fov_xyz"],
         phase=args.phase,
         tta=tta,
+        flow_mode=args.flow_mode,
     )
     if args.num_votes > 1:
         new_list = []
@@ -116,10 +120,11 @@ if __name__ == "__main__":
 
     # --- Evaluation
     id_vote = 0
-    for it, batch in enumerate(
-        tqdm(loader, bar_format="{desc:<5.5}{percentage:3.0f}%|{bar:50}{r_bar}")
-    ):
-        if it>100:
+    tmp_seg_name = f'seg_{args.flow_mode}'
+    # CAR+OTHER_VEHICLES extract their index in CATEGORY_TO_INDEX
+    valid_index_ = [CATEGORY_TO_INDEX[l] for l in CAR + OTHER_VEHICLES]
+    for it, batch in enumerate(tqdm(loader, bar_format="{desc:<5.5}{percentage:3.0f}%|{bar:50}{r_bar}")):
+        if it>10:
             break
         # Reset vote
         if id_vote == 0:
@@ -154,28 +159,46 @@ if __name__ == "__main__":
             pred_label = (
                 vote.max(1)[1] + 1
             )  # Shift by 1 because of ignore_label at index 0
-            label = pred_label.cpu().numpy().reshape(-1).astype(np.uint32)
-            upper_half = label >> 16  # get upper half for instances
-            lower_half = label & 0xFFFF  # get lower half for semantics
-            lower_half = remap_lut[lower_half]  # do the remapping of semantics
 
-            res_sem = [CATEGORY_TO_INDEX[NAME_MAPPING_K2A[kittidict[l]]] for l in lower_half]
-            # CAR+OTHER_VEHICLES extract their index in CATEGORY_TO_INDEX
-            valid_index_ = [CATEGORY_TO_INDEX[l] for l in CAR + OTHER_VEHICLES]
+            ## KITTI:
+            label_ = pred_label.cpu().numpy().reshape(-1).astype(np.uint32)
+            upper_half = label_ >> 16  # get upper half for instances
+            lower_half = label_ & 0xFFFF  # get lower half for semantics
+            label = remap_lut[lower_half]  # do the remapping of semantics
+            res_sem_ = [CATEGORY_TO_INDEX[NAME_MAPPING_K2A[labeldict[l]]] for l in label]
+            
+            ## nuScenes:
+            # label = pred_label.cpu().numpy().reshape(-1).astype(np.uint8)
+            # res_sem_ = [CATEGORY_TO_INDEX[NAME_MAPPING_N2A[labeldict[l]]] for l in label]
 
             # Save result
             assert batch["filename"][0] == batch["filename"][-1]
             scene_id, timestamp = batch["filename"][0].split(":")
-            # print("Scene ID: ", scene_id, "Timestamp: ", timestamp)
+            # # print("Scene ID: ", scene_id, "Timestamp: ", timestamp)
             with h5py.File(os.path.join(args.path_dataset, f'{scene_id}.h5'), 'r+') as f:    
                 key = str(timestamp)
+                if 'flow_category_indices' not in f[key]:
+                    continue
                 valid_class = np.isin(f[key]['flow_category_indices'][:], valid_index_)
                 gm = f[key]['ground_mask'][:]
-                res_sem = np.array(res_sem)
-                res_sem[~valid_class | gm] = 0
-                if 'wf_semantic' in f[key]:
-                    del f[key]['wf_semantic']
-                #     continue
+
+                # gm removed in seg network
+                # res_sem = np.zeros_like(valid_class)
+                # res_sem[~gm] = np.array(res_sem_)
+
+                # no gm remove in seg network
+                seg_valid = valid_class & ~gm
+                res_sem = np.array(res_sem_)
+                # res_sem[~seg_valid] = 0
+
+                if 'seg_valid' not in f[key]:
+                    f[key].create_dataset('seg_valid', data=seg_valid)
+                
+                if tmp_seg_name in f[key]:
+                    # del f[key][tmp_seg_name]
+                    continue
                 # else:
-                #     f[key].create_dataset('wf_semantic', data=res_sem)
-                f[key].create_dataset('wf_semantic', data=res_sem)
+                #     f[key].create_dataset(tmp_seg_name, data=res_sem)
+                f[key].create_dataset(tmp_seg_name, data=res_sem)
+
+    print(f"Segmentation result name: {tmp_seg_name}, Please check the h5 file for the result.")

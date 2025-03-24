@@ -43,9 +43,10 @@ class PCDataset(Dataset):
         num_neighbors=16,
         tta=False,
         instance_cutmix=False,
+        flow_mode="raw",
     ):
         super().__init__()
-
+        self.flow_mode = flow_mode
         # Dataset split
         self.phase = phase
         assert self.phase in ["train", "val", "trainval", "test"]

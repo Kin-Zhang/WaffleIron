@@ -9,7 +9,14 @@ python eval_h5.py \
 --path_dataset /home/kin/data/Scania/preprocess/val_v1 \
 --ckpt ./pretrained_models/WaffleIron-48-256__kitti/ckpt_last.pth \
 --config ./configs/WaffleIron-48-256__kitti.yaml \
---phase val \
+--phase test --flow_mode himu_seflowpp
+
+# default is kitti, I didn't figure out nuscenes yet, not reasonable result here.
+# python eval_h5.py \
+# --path_dataset /home/kin/data/Scania/preprocess/val_v1 \
+# --ckpt ./pretrained_models/WaffleIron-48-384__nuscenes/ckpt_last.pth \
+# --config ./configs/WaffleIron-48-384__nuscenes.yaml \
+# --phase test
 ```
 
 Some note:
