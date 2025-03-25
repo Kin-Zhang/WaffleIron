@@ -1,6 +1,15 @@
 HiMo Downstream task
 ---
 
+Result (mIoU \%) on Argoverse 2 highspeed validation set:
+
+| Input Point Cloud    | Mask Only |         | All     |        |
+| :------------------- | :-------: | :-----: | :-----: | :----: |
+|                      | CAR       | OTHER.  | CAR     | OTHER. |
+| w. ego-motion comp.  | 80\.909   | 31\.44  | 66\.081 | 9\.837 |
+| w. HiMo motion comp. | 81\.541   | 35\.398 | 66\.438 | 11\.15 |
+
+Check main paper (Downstream task - Semantic Segmentation) for more details.
 
 Running command:
 

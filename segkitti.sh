@@ -13,10 +13,9 @@ cd /local_storage/users/qingwen/waffleiron
 git pull
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/Midgard/home/qingwen/miniforge3/lib
 
-$PYTHON launch_train.py \
---dataset semantic_kitti \
+$PYTHON launch_train.py --dataset semantic_kitti \
 --path_dataset /local_storage/datasets/qingwen/data/kitti/data_odometry_velodyne \
 --log_path ./logs/WaffleIron-48-256__kitti \
---config ./configs/WaffleIron-48-256_kitti_noin.yaml \
+--config ./configs/bz8_WaffleIron-48-256_kitti_noin.yaml \
 --multiprocessing-distributed \
 --fp16
