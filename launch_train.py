@@ -90,7 +90,6 @@ def get_datasets(config, args):
         instance_cutmix=config["augmentations"]["instance_cutmix"],
         **kwargs,
     )
-
     # Validation dataset
     val_dataset = DATASET(
         phase="val",
@@ -203,7 +202,7 @@ def distributed_training(gpu, ngpus_per_node, args, config):
         # DataParallel will divide and allocate batch_size to all available GPUs
         model = torch.nn.DataParallel(model).cuda()
     if args.gpu == 0 or args.gpu is None:
-        print(f"Model:\n{model}")
+        # print(f"Model:\n{model}")
         nb_param = sum([p.numel() for p in model.parameters()]) / 1e6
         print(f"{nb_param} x 10^6 trainable parameters ")
 
@@ -215,7 +214,7 @@ def distributed_training(gpu, ngpus_per_node, args, config):
     train_loader, val_loader, train_sampler = get_dataloader(
         train_dataset, val_dataset, args
     )
-
+    print(f"Trainig dataset: {len(train_dataset)} samples")
     # --- Loss function
     loss = SemSegLoss(
         config["classif"]["nb_class"],

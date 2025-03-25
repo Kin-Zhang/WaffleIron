@@ -9,20 +9,49 @@ python eval_h5.py \
 --path_dataset /home/kin/data/Scania/preprocess/val_v1 \
 --ckpt ./pretrained_models/WaffleIron-48-256__kitti/ckpt_last.pth \
 --config ./configs/WaffleIron-48-256__kitti.yaml \
---phase test --flow_mode himu_seflowpp
+--phase test --flow_mode raw
 
-# default is kitti, I didn't figure out nuscenes yet, not reasonable result here.
-# python eval_h5.py \
-# --path_dataset /home/kin/data/Scania/preprocess/val_v1 \
-# --ckpt ./pretrained_models/WaffleIron-48-384__nuscenes/ckpt_last.pth \
-# --config ./configs/WaffleIron-48-384__nuscenes.yaml \
-# --phase test
+python eval_h5.py \
+--path_dataset /home/kin/data/av2/h5py/sensor/himo \
+--ckpt ./pretrained_models/WaffleIron-48-256__kitti/ckpt_last.pth \
+--config ./configs/WaffleIron-48-256__kitti.yaml \
+--phase test --flow_mode raw
+
+
+# below is perfromance on itself dataset, quite good.
+python eval_h5.py \
+--path_dataset /home/kin/data/KITTI/h5py/himo \
+--ckpt ./pretrained_models/WaffleIron-48-256__kitti/ckpt_last.pth \
+--config ./configs/WaffleIron-48-256__kitti.yaml \
+--phase test --flow_mode raw
+
+python eval_h5.py \
+--path_dataset /home/kin/data/nuScenes/preprocess/mini \
+--ckpt ./pretrained_models/WaffleIron-48-384__nuscenes/ckpt_last.pth \
+--config ./configs/WaffleIron-48-384__nuscenes.yaml \
+--phase test --flow_mode raw
 ```
 
-Some note:
-* I didn't check whether the intensity scale is same to kitti so I hardcode to set all intensity as 0 now.
-* I don't know why but looks like lots of background points assign to large vehicle? I filtered out using gt_class as we only evaluate on gt class valid points.
-* h5file looks like lock during this time. I don't know why. I will try to fix it later. (maybe because of previously opened process and unexpected close)
+Some notes:
+- [x] I didn't check whether the intensity scale is same to kitti so I hardcode to set all intensity as 0 now.
+  intensity scale is 0-0.99, so remember to normalize it.
+- [x] I don't know why but looks like lots of background points assign to large vehicle? I filtered out using gt_class as we only evaluate on gt class valid points.
+  I think it's intensity feature problem, 我发现kitti如果直接去掉intensity的话，效果就会出现大量background也是large vehicle的情况
+- [x] h5file looks like lock during this time. I don't know why. I will try to fix it later. (maybe because of previously opened process and unexpected close)
+  `export HDF5_USE_FILE_LOCKING=FALSE` in the terminal you run the code to disable file locking.
+
+
+## Retrain with only xyz
+
+```bash
+python launch_train.py \
+--dataset semantic_kitti \
+--path_dataset /path/to/kitti/ \
+--log_path ./logs/WaffleIron-48-256__kitti \
+--config ./configs/WaffleIron-48-256_kitti_noin.yaml \
+--multiprocessing-distributed \
+--fp16
+```
 
 # WaffleIron
 
@@ -55,13 +84,14 @@ If you find this code or work useful, please cite the following [paper](http://a
 
 We use the following environment:
 ```
-conda create -n waffleiron
-conda activate waffleiron
-conda install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch
+mamba create -n waffleiron
+mamba activate waffleiron
+mamba install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit=11.3 -c pytorch
 pip install pyaml==23.12.0 tqdm==4.63.0 scipy==1.8.0 tensorboard==2.16.2
 git clone https://github.com/valeoai/WaffleIron
 cd WaffleIron
 pip install -e ./
+pip install 'numpy<2.0'
 ```
 
 Alternatively, the code was updated on June 6, 2024 to make it compatible with `pytorch>=2.0`. You should able to use the following environment. In case of problem with this environment, please inform us by reporting an issue.
