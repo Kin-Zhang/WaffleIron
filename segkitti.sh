@@ -8,7 +8,7 @@
 #SBATCH --error  /Midgard/home/qingwen/logs/seg/%J.err
 
 # galadriel|eowyn|balrog|khazadum
-PYTHON=/Midgard/home/qingwen/miniforge3/envs/seflow/bin/python
+PYTHON=/Midgard/home/qingwen/miniforge3/envs/waffleiron/bin/python
 cd /local_storage/users/qingwen/waffleiron
 git pull
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/Midgard/home/qingwen/miniforge3/lib
