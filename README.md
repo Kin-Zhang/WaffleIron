@@ -1,4 +1,4 @@
-HiMo Downstream task
+[HiMo](https://kin-zhang.github.io/HiMo/) Downstream task
 ---
 
 Result (mIoU \%) on Argoverse 2 highspeed validation set:
@@ -14,11 +14,6 @@ Check main paper (Downstream task - Semantic Segmentation) for more details.
 Running command:
 
 ```bash
-python eval_h5.py \
---path_dataset /home/kin/data/Scania/preprocess/val_v1 \
---ckpt ./pretrained_models/WaffleIron-48-256__kitti/ckpt_last.pth \
---config ./configs/WaffleIron-48-256__kitti.yaml \
---phase test --flow_mode raw
 
 python eval_h5.py \
 --path_dataset /home/kin/data/av2/h5py/sensor/himo \
@@ -42,16 +37,17 @@ python eval_h5.py \
 ```
 
 Some notes:
-- [x] I didn't check whether the intensity scale is same to kitti so I hardcode to set all intensity as 0 now.
-  intensity scale is 0-0.99, so remember to normalize it.
-- [x] I don't know why but looks like lots of background points assign to large vehicle? I filtered out using gt_class as we only evaluate on gt class valid points.
-  I think it's intensity feature problem, 我发现kitti如果直接去掉intensity的话，效果就会出现大量background也是large vehicle的情况
+- [x] ~I didn't check whether the intensity scale is same to kitti so I hardcode to set all intensity as 0 now.~
+  Intensity scale is 0-0.99, so remember to normalize it when process av2 data to .h5 file.
+- [x] Intensity must have the same scale to training datasets (i.e., KITTI datasets). I don't know why but looks like lots of background points assign to large vehicle? I filtered out using gt_class as we only evaluate on gt class valid points.
+  I think it's intensity feature problem, 我发现kitti如果直接去掉intensity的话，效果就会出现大量background也是large vehicle的情况; 所以之前scania数据应该就是intensity没对上
 - [x] h5file looks like lock during this time. I don't know why. I will try to fix it later. (maybe because of previously opened process and unexpected close)
   `export HDF5_USE_FILE_LOCKING=FALSE` in the terminal you run the code to disable file locking.
 
 
 ## Retrain with only xyz
 
+If you want to retrain the waffleiron model only with xyz feature (no intensity), you can run:
 ```bash
 python launch_train.py \
 --dataset semantic_kitti \
@@ -61,6 +57,15 @@ python launch_train.py \
 --multiprocessing-distributed \
 --fp16
 ```
+
+While, in our paper, we figured out the argoverse 2 intensity data correctly and able to use it, so the above retrain is not used at the end.
+
+
+---
+
+<details>
+  <summary>[Please check the official repo or below origin read for more detail]</summary>
+
 
 # WaffleIron
 
@@ -320,3 +325,8 @@ WaffleIron is released under the [Apache 2.0 license](./LICENSE).
 
 The implementation of the Lovász loss in `utils/lovasz.py` is released under 
 [MIT Licence](https://github.com/bermanmaxim/LovaszSoftmax/blob/master/LICENSE).
+
+
+
+
+</details>
